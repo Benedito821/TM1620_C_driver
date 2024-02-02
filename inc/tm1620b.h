@@ -1,6 +1,7 @@
 #ifndef INC_TM1620B_H_
 #define INC_TM1620B_H_
 #include "tim.h"
+#include "spi.h"
 
 typedef enum{
 	TO_LOW,

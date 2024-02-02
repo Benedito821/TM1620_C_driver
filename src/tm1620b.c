@@ -1,8 +1,8 @@
 #include "tm1620b.h"
 #include "stdint.h"
 #include "string.h"
-#define DATA_BIT_IS(state) state==1? HAL_GPIO_WritePin(Data_GPIO_Port, Data_Pin, GPIO_PIN_SET)\
-								:    HAL_GPIO_WritePin(Data_GPIO_Port, Data_Pin, GPIO_PIN_RESET)
+
+#define USE_SPI	//switch between driving the displays through spi and gpio
 
 					/* 0 	 1	  2	  3    4    5    6    7    8    9*/
 uint8_t digits[10] = {0x3F,0x06,0x5B,0x4F,0x66,0x6D,0x7D,0x07,0x7F,0x6F};
@@ -11,19 +11,25 @@ uint8_t on_str[6] = {0x37,0x73,0x3E,0x7F,0x79,0x78};
 						/* пока */
 uint8_t off_str[4] = {0x37,0x3F,0x76,0x77};
 
+extern SPI_HandleTypeDef hspi1;
+
 static void TM1620B_config(void);
 static void TM1620B_STB_toggle(e_toggle_state state);
 static void TM1620B_STB_trobeGen(void);
-static void TM1620B_clk_toggle(e_toggle_state state);
 static void TM1620B_8b_data_send(uint8_t data);
 static void TM1620B_16b_data_send(uint8_t firstB,uint8_t secondB);
-static void TM1620B_clk_1_pulseGen(void);
 static void TM1620B_delay(e_TM1620B_delay_us time_us);
 static uint8_t u32_to_displayCh(uint8_t digit);
+static void data_bit_is(uint8_t state);
 
-static void TM1620B_delay(e_TM1620B_delay_us time_ms){
+#ifndef USE_SPI
+static void TM1620B_clk_1_pulseGen(void);
+static void TM1620B_clk_toggle(e_toggle_state state);
+#endif
+
+static void TM1620B_delay(e_TM1620B_delay_us time_us){
 	__HAL_TIM_SET_COUNTER(&htim1,0);
-	while(__HAL_TIM_GET_COUNTER(&htim1) < time_ms);
+	while(__HAL_TIM_GET_COUNTER(&htim1) < time_us);
 }
 
  void TM1620B_init(void){
@@ -43,14 +49,15 @@ static void TM1620B_delay(e_TM1620B_delay_us time_ms){
 
  void TM1620B_clear_all(void){
 	 for(uint8_t num = 1;num < 7;num++)
-			 TM1620B_writeToDisplay(num,0x00);
+		 TM1620B_writeToDisplay(num,0x00);
  }
 
-void TM1620B_clk_toggle(e_toggle_state state){
+
+static void data_bit_is(uint8_t state){
 	switch(state){
-		case TO_LOW: HAL_GPIO_WritePin(CLK_GPIO_Port, CLK_Pin, GPIO_PIN_RESET);
+		case 0: HAL_GPIO_WritePin(Data_GPIO_Port, Data_Pin, GPIO_PIN_RESET);
 			break;
-		case TO_HIGH: HAL_GPIO_WritePin(CLK_GPIO_Port, CLK_Pin, GPIO_PIN_SET);
+		case 1: HAL_GPIO_WritePin(Data_GPIO_Port, Data_Pin, GPIO_PIN_SET);
 			break;
 		default:
 			break;
@@ -68,12 +75,25 @@ void TM1620B_STB_toggle(e_toggle_state state){
 	}
 }
 
+#ifndef USE_SPI
+void TM1620B_clk_toggle(e_toggle_state state){
+	switch(state){
+		case TO_LOW: HAL_GPIO_WritePin(CLK_GPIO_Port, CLK_Pin, GPIO_PIN_RESET);
+			break;
+		case TO_HIGH: HAL_GPIO_WritePin(CLK_GPIO_Port, CLK_Pin, GPIO_PIN_SET);
+			break;
+		default:
+			break;
+	}
+}
+
 static void TM1620B_clk_1_pulseGen(void){
 	TM1620B_clk_toggle(TO_LOW);
 	TM1620B_delay(PW_CLK);
 	TM1620B_clk_toggle(TO_HIGH);
 	TM1620B_delay(PW_CLK);
 }
+#endif
 
 static void TM1620B_STB_trobeGen(void){
 	TM1620B_STB_toggle(TO_HIGH);
@@ -82,40 +102,45 @@ static void TM1620B_STB_trobeGen(void){
 }
 
 static void TM1620B_8b_data_send(uint8_t data){
-	uint8_t pos;
-
 	TM1620B_STB_toggle(TO_LOW);
-
+#ifdef USE_SPI
+	HAL_SPI_Transmit_DMA(&hspi1, &data, 1);
+#else
+	uint8_t pos;
 	for(pos=0;pos<8;pos++){
 		TM1620B_clk_toggle(TO_LOW);
 		if((data>>pos) & 0x01)
-			DATA_BIT_IS(1);
+			data_bit_is(1);
 		else
-			DATA_BIT_IS(0);
+			data_bit_is(0);
 		TM1620B_delay(PW_CLK);
 		TM1620B_clk_toggle(TO_HIGH);
 	}
-	return;
+#endif
 }
 
 static void TM1620B_16b_data_send(uint8_t firstB,uint8_t secondB){
-	uint8_t pos;
 	TM1620B_STB_toggle(TO_LOW);
+#ifdef USE_SPI
+	HAL_SPI_Transmit_DMA(&hspi1, &firstB, 1);
+	HAL_SPI_Transmit_DMA(&hspi1, &secondB, 1);
+#else
+	uint8_t pos;
 	for(pos=0;pos<8;pos++){
 		if((firstB>>pos) & 1)
-			DATA_BIT_IS(1);
+			data_bit_is(1);
 		else
-			DATA_BIT_IS(0);
+			data_bit_is(0);
 		TM1620B_clk_1_pulseGen();
 	}
 	for(pos=0;pos<8;pos++){
 			if((secondB>>pos) & 1)
-				DATA_BIT_IS(1);
+				data_bit_is(1);
 			else
-				DATA_BIT_IS(0);
+				data_bit_is(0);
 			TM1620B_clk_1_pulseGen();
 	}
-	return;
+#endif
 }
 
 
@@ -203,11 +228,9 @@ static uint8_t u32_to_displayCh(uint8_t digit){
 		break;
 		default: break;
 	}
-	return 0x00; //in case of invalid character turn off the display
 }
 
 void standby_effect(void){
-
 	TM1620B_writeToDisplay(DISPLAY_1,0x0F);
 	TM1620B_writeToDisplay(DISPLAY_2,0x09);
 	TM1620B_writeToDisplay(DISPLAY_3,0x09);
