@@ -25,11 +25,11 @@ typedef enum{ //counting from right  to the left
 	DISPLAY_6
 }e_TM1620B_displayNum;
 
-typedef enum{
-	DISPLAY_MODE = 0x02, // Set display mode to 6 digits 7 segments
-	ADDR_TYPE 	 = 0x44, // use a fixed address
-	BRIGHTNESS 	 = 0x8F  // display control max brightness
-}e_command;
+
+#define	DISPLAY_MODE = 0x02, // Set display mode to 6 digits 7 segments
+#define	ADDR_TYPE 	 = 0x44, // use a fixed address
+#define	BRIGHTNESS 	 = 0x8F  // display control max brightness
+
 
 void TM1620B_writeToDisplay(e_TM1620B_displayNum disp_num,uint8_t data);
 void TM1620B_clear_all(void);

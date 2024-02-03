@@ -20,9 +20,9 @@ static void TM1620B_8b_data_send(uint8_t data);
 static void TM1620B_16b_data_send(uint8_t firstB,uint8_t secondB);
 static void TM1620B_delay(e_TM1620B_delay_us time_us);
 static uint8_t u32_to_displayCh(uint8_t digit);
-static void data_bit_is(uint8_t state);
 
 #ifndef USE_SPI
+static void data_bit_is(uint8_t state);
 static void TM1620B_clk_1_pulseGen(void);
 static void TM1620B_clk_toggle(e_toggle_state state);
 #endif
@@ -39,10 +39,10 @@ static void TM1620B_delay(e_TM1620B_delay_us time_us){
  }
 
  static void TM1620B_config(void){
-	TM1620B_8b_data_send(DISPLAY_MODE);
+	TM1620B_8b_data_send((uint8_t)DISPLAY_MODE);
 	TM1620B_delay(T_CLKSTB);
 	TM1620B_STB_trobeGen();
-	TM1620B_8b_data_send(ADDR_TYPE);
+	TM1620B_8b_data_send((uint8_t)ADDR_TYPE);
 	TM1620B_delay(T_CLKSTB);
 	TM1620B_STB_trobeGen();
  }
@@ -52,17 +52,6 @@ static void TM1620B_delay(e_TM1620B_delay_us time_us){
 		 TM1620B_writeToDisplay(num,0x00);
  }
 
-
-static void data_bit_is(uint8_t state){
-	switch(state){
-		case 0: HAL_GPIO_WritePin(Data_GPIO_Port, Data_Pin, GPIO_PIN_RESET);
-			break;
-		case 1: HAL_GPIO_WritePin(Data_GPIO_Port, Data_Pin, GPIO_PIN_SET);
-			break;
-		default:
-			break;
-	}
-}
 
 void TM1620B_STB_toggle(e_toggle_state state){
 	switch(state){
@@ -92,6 +81,17 @@ static void TM1620B_clk_1_pulseGen(void){
 	TM1620B_delay(PW_CLK);
 	TM1620B_clk_toggle(TO_HIGH);
 	TM1620B_delay(PW_CLK);
+}
+
+static void data_bit_is(uint8_t state){
+	switch(state){
+		case 0: HAL_GPIO_WritePin(Data_GPIO_Port, Data_Pin, GPIO_PIN_RESET);
+			break;
+		case 1: HAL_GPIO_WritePin(Data_GPIO_Port, Data_Pin, GPIO_PIN_SET);
+			break;
+		default:
+			break;
+	}
 }
 #endif
 
